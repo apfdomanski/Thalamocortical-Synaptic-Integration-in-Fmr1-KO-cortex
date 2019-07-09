@@ -1,8 +1,5 @@
  ### Distorted Frequency Filtering and Synaptic Integration at the _Fmr1-KO_ Thalamocortical Synapse
- 
  ![Banner_cartoon](Screenshots/repository-banner.png) 
-
- 
 A suite of NEURON simulations to dissect the roles of distributed circuit pathophysiology in the young _Fmr1-KO_ mouse thalamocortical system
 
 This folder contains simulations supporting results presented in Figs 8-9 in the following paper:
