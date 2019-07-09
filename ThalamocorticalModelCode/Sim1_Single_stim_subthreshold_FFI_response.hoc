@@ -1,0 +1,145 @@
+// This folder contains simulations supporting results presented in Figs 7-8 in the following paper:
+// Domanski APF, Booker S, Wyllie DJA, Isaac JTR, Kind PC (2018)
+// "Cellular and Synaptic Compensations Limit Circuit Disruption in Fmr1-KO Mouse but Fail to Prevent Deficits in Information Processing"
+// BiorXiv preprint: https://doi.org/10.1101/403725
+// Author: Aleksander PF Domanski 2015-2019 University of Bristol, UK aleks.domanski@bristol.ac.uk
+// Copyright: (C) Aleksander PF Domanski 2019 University of Bristol, UK
+// --------
+// License: GNU General Public License version 2
+// This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+// You should have received a copy of the GNU General Public License along with this program; if not, write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// http://www.gnu.org/copyleft/gpl.html
+// --------
+// Usage:
+// This simulates the effect of FFI on the postsynaptic currents (Blue:EPSC, Red:IPSC) and membrane potential (black) of the model layer 4 stellate cell in response to a single model thalamic input. 
+// - Press ‘init & Run’ to simulate.
+// - Examine the Vm effect of varying the strength of the Ex and In synaptic weights, and the synaptic delays between the two input currents. 
+// - In the console, try typing ‘init_WT_passive()’ or ‘init_KO_passive()’ to switch between the cell intrinsic properties of the WT and KO simulation , respectively. 
+// - To compare the voltage responses, keep the previous lines on the graph window screen by right-clicking>keep lines.
+
+
+{load_file("nrngui.hoc")}
+{load_file("cell defs.hoc")}
+load_file("channel defs.hoc")
+
+
+///////////////////////////
+//*Simulation controls  *//
+///////////////////////////
+
+
+
+{xpanel("RunControl", 0)
+	v_init = -65
+	xvalue("Init","v_init", 1,"stdinit()", 1, 1 )
+	xbutton("Init & Run","run()")
+	xbutton("Stop","stoprun=1")
+	runStopAt = 5
+	xvalue("Continue til","runStopAt", 1,"{continuerun(runStopAt) stoprun=1}", 1, 1 )
+	runStopIn = 1
+	xvalue("Continue for","runStopIn", 1,"{continuerun(t + runStopIn) stoprun=1}", 1, 1 )
+	xbutton("Single Step","steprun()")
+	t = 0
+	xvalue("t","t", 2 )
+	tstop = 500
+	xvalue("Tstop","tstop", 1,"tstop_changed()", 0, 1 )
+	dt = 0.025
+	xvalue("dt","dt", 1,"setdt()", 0, 1 )
+	steps_per_ms = 40
+	xvalue("Points plotted/ms","steps_per_ms", 1,"setdt()", 0, 1 )
+	screen_update_invl = 0.05
+	xvalue("Scrn update invl","screen_update_invl", 1,"", 0, 1 )
+	realtime = 0
+	xvalue("Real Time","realtime", 0,"", 0, 1 )
+	xpanel(38,336)
+	}
+	
+objectvar scene_vector_[1]
+{doNotify()}
+
+proc StimParamMenu(){
+	xpanel("")
+	xlabel("Synapse peak conductance")
+	a=0.002
+	b=0.002
+	d=1.84
+	e=50
+	f=5
+	xvalue("Ex synapse weight (uS) ",	"a",1,"ExCon.weight=a")
+	xvalue("In synapse weight (uS)  ",	"b",1,"InCon.weight=b")
+	xvalue("In syn delay (ms) ",		"d",1,"InCon.delay=d")	
+	xpanel(15,554)
+	}
+	
+	
+///////////////////////////////////////////////////////////////
+// Procs
+///////////////////////////////////////////////////////////////
+
+// display total surface area
+proc totalarea(){ local sum
+  	finitialize(v_init)
+  	sum = 0
+  	forall for (x,0) sum += area(x)
+  	print "total surface area = ", sum, " um2"
+  	}
+
+// display whole cell capacitance
+proc WCcapacitance(){local sum, WCcap
+  	finitialize(v_init)
+  	sum = 0
+  	forall for (x,0) sum += area(x)
+  	WCcap=0
+  	WCcap =  sum * (soma.cm)* 1E-2
+  	print "Whole cell capacitance = ", WCcap, " pF"
+  	}
+
+// compute input impedance 
+proc Compute_Zin(){localobj z
+	finitialize(v_init)
+	z = new Impedance()      
+	soma { z.loc(0.5) } 
+	z.compute(1, 1)                         
+        Zin = 0
+        soma { Zin = z.input(0.5) } 
+        print "Input impedance: ", Zin, " MOhms"
+        }
+
+// Recalculate intrinsic properties
+proc Recalc(){
+	Compute_Zin()
+	totalarea() 
+	WCcapacitance()
+	}
+	
+/////////////////
+//*Initialise *//
+/////////////////
+
+init_WT_all() // initialise to WT kinetics
+StimParamMenu()
+Recalc()
+
+stimsource.number=1
+
+// plot membrane potential 
+objref vg 
+	vg= new Graph(0)
+	//vg.size(0,tstop, -80,-40)
+	vg.view(0, -70, tstop, 30, 1188, 2, 588.6, 200.8)
+	graphList[0].append(vg)
+	vg.addvar("soma.v(0.5)", 1, 1, 0.8, 0.9, 2)
+	vg.begin()
+
+// plot synaptic current
+objref ig
+	ig= new Graph(0)
+	//ig.size(0,tstop,-0.12,0.12)
+	ig.view(0, -0.12, tstop, 0.24, 1189, 352, 588.6, 200.8)
+	graphList[1].append(ig)
+	ig.addvar("ExSyn.i", 3, 1, 0.8, 0.9, 2)
+	ig.addexpr("InSyn.i", 2, 1, 0.8, 0.9, 2)
+
+	ig.begin()
+

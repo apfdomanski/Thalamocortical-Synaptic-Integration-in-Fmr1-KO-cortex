@@ -1,0 +1,630 @@
+// This folder contains simulations supporting results presented in Figs 7-8 in the following paper:
+// Domanski APF, Booker S, Wyllie DJA, Isaac JTR, Kind PC (2018)
+// "Cellular and Synaptic Compensations Limit Circuit Disruption in Fmr1-KO Mouse but Fail to Prevent Deficits in Information Processing"
+// BiorXiv preprint: https://doi.org/10.1101/403725
+// Author: Aleksander PF Domanski 2015-2019 University of Bristol, UK aleks.domanski@bristol.ac.uk
+// Copyright: (C) Aleksander PF Domanski 2019 University of Bristol, UK
+// --------
+// License: GNU General Public License version 2
+// This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+// You should have received a copy of the GNU General Public License along with this program; if not, write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// http://www.gnu.org/copyleft/gpl.html
+// --------
+// Usage:
+// This simulation takes the four thalamocortical pathophysiology parameter groups studied in the simulations above:
+// 1.	Intrinsic cell excitability
+// 2.	Synaptic kinetics
+// 3.	Excitation-Inhibition synaptic delay
+// 4.	Short-term plasticity
+// ... and starting with an Fmr1-KO simulation (condition code ‘0000’) combinatorically replaces KO parameter group values with corresponding WT ones, moving through each combination of 16 parameter rescue scenario until the full WT model condition (code ‘1111’) is achieved. 
+// Under this nomenclature, condition code ‘1010’ represents WT values for Intrinsic cell excitability and Excitation-Inhibition synaptic delay, but KO Synaptic kinetics and Short-term plasticity.
+// The response profiles for each parameter rescue condition across the space of FFI strength (Ex/In balance) and thalamocortical input rate are calculated: i.e. did the model neuron fire fewer or greater numbers of spikes under identical stimulation conditions.
+// Supports Fig 8 in the paper.
+
+load_file("nrngui.hoc")
+load_file("cell defs.hoc")
+load_file("channel defs.hoc")
+
+
+objref maxplotbox, maxplot, vplot
+objref distrx, distry, distrz, outx, outy, outz //distx,yzz are internal vars that reset each rep, outx,y,z are concatenated for the whole run and are saved to .DAT
+objref tempmatrix, savdata // temp placeholder and output matrix identifier
+strdef filename
+
+/////////////////////////
+// Simulation controls //
+/////////////////////////
+
+cvode.active(1) // Multi order variable time step integration method
+cvode.atol(1e-3)
+dt=0.025
+tstop=1200
+v_rest=-70
+v_init=v_rest
+
+objref max_dt, max_FFI, res_dt, res_FFI
+	max_dt = new Vector(1)
+	max_dt.x[0]=201 // maximum ISI (ms) to run up to
+
+	max_FFI = new Vector(1)
+	max_FFI.x[0]=11 // maximum G/A ratio  to run up to
+
+	res_dt = new Vector(1)
+	res_dt.x[0]=1 // iteration increment of ISI
+
+	res_FFI = new Vector(1)
+	res_FFI.x[0]=0.5 // iteration increment of FFI
+
+
+///////////
+// Boxes //
+///////////	
+
+// Stimulation control box
+proc StimParamMenu(){
+	xpanel("Simulation controls")
+	xlabel("Looping control - range of FFI to explore")
+	aa=ExCon.weight
+	bb=stimsource.number
+	cc=res_FFI.x[0]
+	dd=max_FFI.x[0]
+	ee=res_dt.x[0]
+	ff=max_dt.x[0]
+	gg=stimsource.noise
+	xvalue("Ex synapse weight (uS) ",			"aa",1,"ExCon.weight=aa")
+	xvalue("No. stimuli ",					"bb",1,"stimsource.number=bb")	
+	xvalue("FFI resolution  ",				"cc",1,"res_FFI.x[0]=cc")
+	xvalue("max FFI  ",					"dd",1,"max_FFI.x[0]=dd")
+	xvalue("ISI resolution ",				"ee",1,"res_dt.x[0]=ee")
+	xvalue("Max ISI ",					"ff",1,"max_dt.x[0]=ff")
+	xvalue("Poisson? ",					"gg",1,"stimsource.noise=gg")
+
+	xpanel(15,554)
+	}
+
+	
+
+
+// Summation plot
+maxplotbox = new HBox() 
+	maxplotbox.intercept(1)	
+	vplot = new Graph()
+	vplot.size(0,tstop,-90,20)
+	vplot.xaxis(1)
+	vplot.label(0.4, 0.1,"Time (ms)")
+	//vplot.exec_menu("10% Zoom out")
+	vplot.brush(1)
+	
+	maxplot = new Graph()
+	maxplot.size(0,200,0,20)
+	maxplot.xaxis(1)
+	maxplot.label(0.4,0.1,"Inter-stimulus interval (ms)")
+	maxplot.label(0.4, 0.9,"Peak depolarization (mV)")
+	//g.label(0.35,0.22,"S1")
+	//maxplot.mark(60,-66,"O",6,1,1)
+	maxplot.exec_menu("10% Zoom out")
+	maxplot.brush(2)
+	
+	xpanel("",1)
+	xbutton("0000_0 (full KO)", "run_0000_0()")
+	xbutton("0001_1", "run_0001_1()")
+	xbutton("0010_2", "run_0010_2()")
+	xbutton("0011_3", "run_0011_3()")
+	xbutton("0100_4", "run_0100_4()")
+	xbutton("0101_5", "run_0101_5()")
+	xbutton("0110_6", "run_0110_6()")
+	xbutton("0111_7", "run_0111_7()")
+	xbutton("1000_8", "run_1000_8()")
+	xbutton("1001_9", "run_1001_9()")
+	xbutton("1010_10", "run_1010_10()")
+	xbutton("1011_11", "run_1011_11()")
+	xbutton("1100_12", "run_1100_12()")
+	xbutton("1101_13", "run_1101_13()")
+	xbutton("1110_14", "run_1110_14()")
+	xbutton("1111_15 (full rescue)", "run_1111_15()")
+	xpanel()
+	maxplotbox.intercept(0)
+	maxplotbox.map()
+
+
+
+	
+	
+
+
+
+////////////////
+// Initialise //
+////////////////
+StimParamMenu()
+//init_WT_all() 
+Recalc()
+
+
+///////////////////
+// Runtime loops //
+///////////////////
+
+proc init(){
+	t=0
+        forall {v=Vrest e_pas =Vrest}
+	finitialize(v)
+        fcurrent()        
+        cvode.re_init()
+	vplot.begin()
+	vplot.plot(t)
+	}
+
+
+
+proc step(){
+	fadvance()
+	vplot.plot(t)
+	}
+
+proc run(){
+	init()
+	while(t<tstop) { step()}
+	vplot.flush()
+	doNotify()
+	}
+
+//  looping
+proc loop() {
+	maxplot.color(color)
+	vplot.addvar("soma.v(0.5)",color,1, tstop,0,2)
+	stimsource.start()=100
+	stimsource.interval()=1
+	InCon.weight=0.00000 //initialise to no FFI
+
+	while (InCon.weight/ExCon.weight<=max_FFI.x[0]){		//set G/A ratio to stop after while (InCon.weight<0.021){ or <ExCon.weight*11{
+		stimsource.interval()=1
+		distrx=new Vector()//ISI
+		distry=new Vector()//Vmax
+		distrz=new Vector()//In
+
+		while (stimsource.interval<=max_dt.x[0]) {
+			run()
+			distrx.append(stimsource.interval())
+			distry.append(InCon.weight()/ExCon.weight())
+			distrz.append(soma.vmax_ds(0.5)-Vrest)
+			stimsource.interval()=stimsource.interval()+res_dt.x[0] // increment ISI
+			}
+
+		
+		outx.append(distrx) //append outx,y with whole of distx, disty
+		outy.append(distry)
+		outz.append(distrz)
+
+		maxplot.beginline()
+		for index=0, distrx.size()-1 {maxplot.line(distrx.x[index],distrz.x[index])} //plot coords of max summation in distx, disty		
+		maxplot.flush()
+		doNotify()
+		
+		InCon.weight()=InCon.weight()+ExCon.weight()*res_FFI.x[0] // increment FFI ratio +InCon.weight()+0.001
+		}
+		
+	// outy.div(ExCon.weight())
+	savdata = new File()
+	savdata.wopen(filename)
+	savdata.wopen(filename)
+	savdata.printf("ISI (ms) | In/Ex ratio | Peak Depolarisation (mV)\n")
+	tempmatrix = new Matrix()
+	tempmatrix.resize(outx.size(),3)
+	tempmatrix.setcol(0, outx)
+	tempmatrix.setcol(1, outy)
+	tempmatrix.setcol(2, outz)
+	tempmatrix.fprint(savdata, " %g")
+	savdata.close()
+	}
+	
+
+
+
+///////////////////////
+//  Genotype control //
+///////////////////////
+// Rescue simulation notation strategy
+// (MSB) |Passive|Kinetics|Delay|STP (LSB)
+
+proc run_0000_0(){
+	maxplot.begin()
+	//maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+	sprint(filename,"%s","0000.dat")
+	init_KO_all()
+	
+	//init_WT_passive()
+	//init_WT_kinetics()
+	//init_WT_delay()
+	//init_WT_STP()
+	
+	//InCon.weight	=0.00
+	color=3 // blue
+	loop()
+	}
+	
+proc run_0001_1(){
+	maxplot.begin()
+	//maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+	sprint(filename,"%s","0001.dat")	
+	init_KO_all()
+	
+	//init_WT_passive()
+	//init_WT_kinetics()
+	//init_WT_delay()
+	init_WT_STP()
+	
+	//InCon.weight	=0.00
+	color=3 // blue
+	loop()
+	}
+	
+proc run_0010_2(){
+	maxplot.begin()
+	//maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+	sprint(filename,"%s","0010.dat")
+	init_KO_all()
+	
+	//init_WT_passive()
+	//init_WT_kinetics()
+	init_WT_delay()
+	//init_WT_STP()
+	
+	//InCon.weight	=0.00
+	color=3 // blue
+	loop()
+	}
+	
+proc run_0011_3(){
+	maxplot.begin()
+	//maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+	sprint(filename,"%s","0011.dat")
+	init_KO_all()
+	
+	//init_WT_passive()
+	//init_WT_kinetics()
+	init_WT_delay()
+	init_WT_STP()
+	
+	//InCon.weight	=0.00
+	color=3 // blue
+	loop()
+	}	
+	
+proc run_0100_4(){
+	maxplot.begin()
+	//maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+	sprint(filename,"%s","0100.dat")
+	init_KO_all()
+	
+	//init_WT_passive()
+	init_WT_kinetics()
+	//init_WT_delay()
+	//init_WT_STP()
+	
+	//InCon.weight	=0.00
+	color=3 // blue
+	loop()
+	}	
+
+proc run_0101_5(){
+	maxplot.begin()
+	//maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+	sprint(filename,"%s","0101.dat")
+	init_KO_all()
+	
+	//init_WT_passive()
+	init_WT_kinetics()
+	//init_WT_delay()
+	init_WT_STP()
+	
+	//InCon.weight	=0.00
+	color=3 // blue
+	loop()
+	}	
+	
+proc run_0110_6(){
+	maxplot.begin()
+	//maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+	sprint(filename,"%s","0110.dat")
+	init_KO_all()
+	
+	//init_WT_passive()
+	init_WT_kinetics()
+	init_WT_delay()
+	//init_WT_STP()
+	
+	//InCon.weight	=0.00
+	color=3 // blue
+	loop()
+	}
+
+proc run_0111_7(){
+	maxplot.begin()
+	//maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+	sprint(filename,"%s","0111.dat")
+	init_KO_all()
+	
+	//init_WT_passive()
+	init_WT_kinetics()
+	init_WT_delay()
+	init_WT_STP()
+	
+	//InCon.weight	=0.00
+	color=3 // blue
+	loop()
+	}
+
+proc run_1000_8(){
+	maxplot.begin()
+	//maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+	sprint(filename,"%s","1000.dat")
+	init_KO_all()
+	
+	init_WT_passive()
+	//init_WT_kinetics()
+	//init_WT_delay()
+	//init_WT_STP()
+	
+	//InCon.weight	=0.00
+	color=3 // blue
+	loop()
+	}
+
+proc run_1001_9(){
+	maxplot.begin()
+	//maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+	sprint(filename,"%s","1001.dat")
+	init_KO_all()
+	
+	init_WT_passive()
+	//init_WT_kinetics()
+	//init_WT_delay()
+	init_WT_STP()
+	
+	//InCon.weight	=0.00
+	color=3 // blue
+	loop()
+	}	
+
+proc run_1010_10(){
+	maxplot.begin()
+	//maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+	sprint(filename,"%s","1010.dat")
+	init_KO_all()
+	
+	init_WT_passive()
+	//init_WT_kinetics()
+	init_WT_delay()
+	//init_WT_STP()
+	
+	//InCon.weight	=0.00
+	color=3 // blue
+	loop()
+	}	
+
+proc run_1011_11(){
+	maxplot.begin()
+	//maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+	sprint(filename,"%s","1011.dat")
+	init_KO_all()
+
+	init_WT_passive()
+	//init_WT_kinetics()
+	init_WT_delay()
+	init_WT_STP()
+	
+	//InCon.weight	=0.00
+	color=3 // blue
+	loop()
+	}
+	
+proc run_1100_12(){
+	maxplot.begin()
+	//maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+	sprint(filename,"%s","1100.dat")
+	init_KO_all()
+	
+	init_WT_passive()
+	init_WT_kinetics()
+	//init_WT_delay()
+	//init_WT_STP()
+	
+	//InCon.weight	=0.00
+	color=3 // blue
+	loop()
+	}	
+	
+proc run_1101_13(){
+	maxplot.begin()
+	//maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+	sprint(filename,"%s","1101.dat")
+	init_KO_all()
+	
+	init_WT_passive()
+	init_WT_kinetics()
+	//init_WT_delay()
+	init_WT_STP()
+	
+	//InCon.weight	=0.00
+	color=3 // blue
+	loop()
+	}	
+	
+proc run_1110_14(){
+	maxplot.begin()
+	//maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+	sprint(filename,"%s","1110.dat")
+	init_KO_all()
+	init_WT_passive()
+	init_WT_kinetics()
+	init_WT_delay()
+	//init_WT_STP()
+	
+	//InCon.weight	=0.00
+	color=3 // blue
+	loop()
+	}		
+	
+proc run_1111_15(){
+	maxplot.begin()
+	//maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+	sprint(filename,"%s","1111.dat")
+	init_KO_all()
+	
+	init_WT_passive()
+	init_WT_kinetics()
+	init_WT_delay()
+	init_WT_STP()
+	
+	//InCon.weight	=0.00
+	color=2 // red
+	loop()
+	}			
+	
+init_active() 
+	
+run_0000_0()
+maxplot.exec_menu("Erase")
+run_0001_1()
+maxplot.exec_menu("Erase")
+run_0010_2()
+maxplot.exec_menu("Erase")
+run_0011_3()
+maxplot.exec_menu("Erase")
+run_0100_4()
+maxplot.exec_menu("Erase")
+run_0101_5()
+maxplot.exec_menu("Erase")
+run_0110_6()
+maxplot.exec_menu("Erase")
+run_0111_7()
+maxplot.exec_menu("Erase")
+run_1000_8()
+maxplot.exec_menu("Erase")
+run_1001_9()
+maxplot.exec_menu("Erase")
+run_1010_10()
+maxplot.exec_menu("Erase")
+run_1011_11()
+maxplot.exec_menu("Erase")
+run_1100_12()
+maxplot.exec_menu("Erase")
+run_1101_13()
+maxplot.exec_menu("Erase")
+run_1110_14()
+maxplot.exec_menu("Erase")
+run_1111_15()	

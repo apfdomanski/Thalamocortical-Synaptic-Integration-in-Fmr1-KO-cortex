@@ -1,0 +1,93 @@
+///////////////////////////////
+// Active channel properties //
+///////////////////////////////	
+
+// This folder contains simulations supporting results presented in Figs 7-8 in the following paper:
+// Domanski APF, Booker S, Wyllie DJA, Isaac JTR, Kind PC (2018)
+// "Cellular and Synaptic Compensations Limit Circuit Disruption in Fmr1-KO Mouse but Fail to Prevent Deficits in Information Processing"
+// BiorXiv preprint: https://doi.org/10.1101/403725
+// Author: Aleksander PF Domanski 2015-2019 University of Bristol, UK aleks.domanski@bristol.ac.uk
+// Copyright: (C) Aleksander PF Domanski 2019 University of Bristol, UK
+// --------
+// License: GNU General Public License version 2
+// This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+// You should have received a copy of the GNU General Public License along with this program; if not, write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// http://www.gnu.org/copyleft/gpl.html
+// --------
+// Usage:
+// This file sets the properties of the voltage-gated conductances required to make the neurons fire spikes. These are not altered between model genotypes. 
+
+
+
+
+
+celsius   = 31.5
+Ek = -90
+Ena = 60
+
+
+gna_dend = 20
+gna_axon = 6000
+gna_soma = gna_dend
+
+gkv_axon = 2000
+gkv_soma = 200
+
+gca = .3
+gkm = .1
+gkca = 3
+
+gca_soma = gca
+gkm_soma = gkm
+gkca_soma = gkca
+ 
+   
+  
+
+proc init_active() {
+  
+ // **** na+ channels
+    forall insert na
+    dend[0] {gbar_na = gna_dend}
+    axon    {gbar_na = gna_axon}
+ // **** kv delayed rectifier channels
+    soma { insert kv  gbar_kv = gkv_soma }
+    axon { insert kv  gbar_kv = gkv_axon }
+
+ // **** dendritic channels
+    dend {
+    insert km    gbar_km  = gkm
+    insert kca   gbar_kca = gkca
+    insert ca    gbar_ca = gca
+    insert cad
+    }
+
+ // **** somatic channels
+    soma {
+    insert km
+    insert kca
+    insert ca
+    gbar_na = gna_soma
+    gbar_km = gkm_soma
+    gbar_kca = gkca_soma
+    gbar_ca = gca_soma
+    }
+ 
+
+ 
+
+ forall if(ismembrane("k_ion")) ek = Ek
+ forall if(ismembrane("na_ion")) {
+    ena = Ena
+    // seems to be necessary for 3d cells to shift Na kinetics -5 mV
+    vshift_na = -5
+    }
+ forall if(ismembrane("ca_ion")) {
+    eca = 140
+    ion_style("ca_ion",0,1,0,0,0)
+    vshift_ca = 0
+    }
+ }
+
+

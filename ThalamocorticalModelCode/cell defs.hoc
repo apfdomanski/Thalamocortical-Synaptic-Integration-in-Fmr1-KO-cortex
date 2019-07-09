@@ -1,0 +1,245 @@
+// This folder contains simulations supporting results presented in Figs 7-8 in the following paper:
+// Domanski APF, Booker S, Wyllie DJA, Isaac JTR, Kind PC (2018)
+// "Cellular and Synaptic Compensations Limit Circuit Disruption in Fmr1-KO Mouse but Fail to Prevent Deficits in Information Processing"
+// BiorXiv preprint: https://doi.org/10.1101/403725
+// Author: Aleksander PF Domanski 2015-2019 University of Bristol, UK aleks.domanski@bristol.ac.uk
+// Copyright: (C) Aleksander PF Domanski 2019 University of Bristol, UK
+// --------
+// License: GNU General Public License version 2
+// This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+// You should have received a copy of the GNU General Public License along with this program; if not, write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// http://www.gnu.org/copyleft/gpl.html
+// --------
+// Usage:
+// This file sets parameters related to passive and synaptic properties of the Fmr1-KO and WT model neurons approximating the intrinsic properties of LIV stellate cells. Also contains utility functions to measure passive neuronal parameters.
+// The model neuron is instantiated as a ball and stick model with an axon. See methods section of the above paper for details.
+
+
+v_init=-65
+Vrest = v_init
+
+ndend = 1
+create soma, dend[ndend], axon
+
+
+soma {
+    	nseg = 1  	
+    	diam = 10
+    	L = 10
+    	insert pas {g_pas=2.45e-5 e_pas =v_init}
+    	insert ds
+    	}
+
+axon {
+	nseg = 50
+	diam = 1
+	L = 200
+    	insert pas {g_pas=2.45e-5 e_pas =v_init}
+        }
+        connect axon(1), soma(0)    
+
+for i = 0, ndend-1 dend[i] {
+	nseg = 50
+	diam = 3
+	L = 974
+    	insert pas {g_pas=2.45e-5 e_pas =v_init}
+	}    
+for i = 0, ndend-1 connect dend[i](0), soma(1)
+
+// Regular Netstim definition
+ objref stimsource
+soma {
+	stimsource		=new NetStim(0.5)
+	stimsource.interval 	= 20
+	stimsource.number 	= 5
+	stimsource.start 	= 100
+	stimsource.noise	= 0
+	}
+	
+
+// Ex and In synapse definitions	 
+objref ExSyn, ExCon,  InSyn, InCon, ExSyn_NMDA, ExCon_NMDA
+soma {
+	ExSyn=new FDSExp2Syn(0.5)
+	ExSyn.e			=0 	// reverse at 0mV
+	ExSyn.tau1		=0.6278 // rise time
+	ExSyn.tau2		=2.751	// decay tau
+	}
+soma {
+	InSyn=new FDSExp2Syn(0.5)
+	InSyn.e			=-78	// reverse at -78mV
+	InSyn.tau1		=0.7324 // rise time
+	InSyn.tau2		=9.512	// decay tau
+	}	
+soma {
+	ExSyn_NMDA=new NMDA_FDSExp2Syn(0.5)
+	ExSyn_NMDA.e		=0 	// reverse at 0mV
+	ExSyn_NMDA.tau1		=2.23 	// rise time
+	ExSyn_NMDA.tau2		=75.68	// decay tau
+	}
+	
+soma {
+	ExCon=new NetCon(stimsource, ExSyn)
+	ExCon.threshold		=10
+	ExCon.delay		=10
+	ExCon.weight		=0.002
+	}	
+
+soma {
+	InCon=new NetCon(stimsource, InSyn)
+	InCon.threshold		=10
+	InCon.delay		=10
+	InCon.weight		=0
+	}
+	
+soma {
+	ExCon_NMDA=new NetCon(stimsource, ExSyn_NMDA)
+	ExCon_NMDA.threshold		=10
+	ExCon_NMDA.delay		=10
+	ExCon_NMDA.weight		=0.001
+	}
+	
+//Procedures to initilise properties to either genotype means
+
+//////////////////////////
+// Cell parameter check //
+//////////////////////////
+
+// display total surface area
+proc totalarea(){ local sum
+  	finitialize(v_init)
+  	sum = 0
+  	forall for (x,0) sum += area(x)
+  	print "total surface area = ", sum, " um2"
+  	}
+
+
+
+// display whole cell capacitance
+proc WCcapacitance(){local sum, WCcap
+  	finitialize(v_init)
+  	sum = 0
+  	forall for (x,0) sum += area(x)
+  	WCcap=0
+  	WCcap =  sum * (soma.cm)* 1E-2
+  	print "Whole cell capacitance = ", WCcap, " pF"
+  	}
+
+
+
+// compute input impedance 
+proc Compute_Zin(){localobj z
+	finitialize(v_init)
+	z = new Impedance()      
+	soma { z.loc(0.5) } 
+	z.compute(1, 1)                         
+        Zin = 0
+        soma { Zin = z.input(0.5) } 
+        print "Input impedance: ", Zin, " MOhms"
+        }
+
+
+
+// Recalculate intrinsic properties
+proc Recalc(){
+	Compute_Zin()
+	totalarea() 
+	WCcapacitance()
+	}	
+
+proc init_WT_all() {
+		init_WT_passive()
+		init_WT_kinetics()
+		init_WT_delay()
+		init_WT_STP()
+		}
+		
+proc init_KO_all() {
+		init_KO_passive()
+		init_KO_kinetics()
+		init_KO_delay()
+		init_KO_STP()
+		}		
+proc init_WT_passive(){
+		soma g_pas 	= 2.45e-5
+		axon g_pas 	= 2.45e-5
+		dend[0] g_pas 	= 2.45e-5
+		dend[0] L = 974
+		}		
+proc init_KO_passive() {
+		soma g_pas 	= 1.5e-5
+		axon g_pas 	= 1.5e-5
+		dend[0] g_pas 	= 1.5e-5
+		dend[0] L = 914
+		}
+proc init_WT_kinetics() {
+		ExSyn.tau1	=0.6278 // rise time
+		ExSyn.tau2	=8	// decay tau  2.751
+		ExSyn.e		=0 //Erev (mV)
+		InSyn.tau1	=0.7324 // rise time
+		InSyn.tau2	=14.21	// decay tau 9.512
+		InSyn.e		=-78 //Erev (mV)
+		}
+proc init_KO_kinetics() {
+		ExSyn.tau1	=0.8661
+		ExSyn.tau2	=8 	//3.096
+		ExSyn.e		=0 //Erev (mV)
+		InSyn.tau1	=0.8542 // rise time
+		InSyn.tau2	=27.18	// decay tau 12.03	
+		InSyn.e		=-78 //Erev (mV)
+		}
+proc init_WT_delay(){
+	ExCon.delay	=0//3.365
+	InCon.delay	=1.55  //4.947	
+	}
+proc init_KO_delay(){
+	ExCon.delay	=0 //5.500
+	InCon.delay	=1.84 //5.900
+	}
+proc init_WT_STP(){
+		ExSyn.f		=0. //facilitation fraction		//0
+		ExSyn.tau_F	=90 //facilitation recovery tau		//0	
+		ExSyn.d1	=0.6 //fast depression fraction	//0.73		
+		ExSyn.tau_D1	=20 //fast depression recovery tau	//162
+		ExSyn.d2	=0.92 //slow depression fraction		//1
+		ExSyn.tau_D2	=9000 //slow depression recovery taut	//1000
+		
+		ExSyn_NMDA.f	  =0. //facilitation fraction		//0
+		ExSyn_NMDA.tau_F  =90 //facilitation recovery tau		//0	
+		ExSyn_NMDA.d1	  =0.6 //fast depression fraction	//0.73		
+		ExSyn_NMDA.tau_D1 =20 //fast depression recovery tau	//162
+		ExSyn_NMDA.d2	  =0.92 //slow depression fraction		//1
+		ExSyn_NMDA.tau_D2 =9000 //slow depression recovery taut	//1000
+		
+		
+		InSyn.f		=0. //facilitation fraction		//0				
+		InSyn.tau_F	=30 //facilitation recovery tau		//0			
+		InSyn.d1	=0.2//0.3 //0.55//fast depression fraction	//0.51
+		InSyn.tau_D1	=20 //fast depression recovery tau	//99	
+		InSyn.d2	=0.5//0.4//0.6 //0.8 //slow depression fraction		//1
+		InSyn.tau_D2	=1000//800// 9200 //slow depression recovery tau    /1000		
+		}
+		
+proc init_KO_STP(){
+		ExSyn.f		=0 //facilitation fraction		//0
+		ExSyn.tau_F	=400 //facilitation recovery tau		//0				
+		ExSyn.d1	=0.6 //fast depression fraction	//0.59
+		ExSyn.tau_D1	=1 //fast depression recovery tau	//55	
+		ExSyn.d2	=0.8 //slow depression fraction		//1
+		ExSyn.tau_D2	=500 //slow depression recovery tau	/1000
+		
+		ExSyn_NMDA.f	  =0 //facilitation fraction		//0
+		ExSyn_NMDA.tau_F  =400 //facilitation recovery tau		//0				
+		ExSyn_NMDA.d1	  =0.6 //fast depression fraction	//0.59
+		ExSyn_NMDA.tau_D1 =1 //fast depression recovery tau	//55	
+		ExSyn_NMDA.d2	  =0.8 //slow depression fraction		//1
+		ExSyn_NMDA.tau_D2 =500 //slow depression recovery tau	/1000
+		
+		InSyn.f		=0 //facilitation fraction		//0			
+		InSyn.tau_F	=500 //facilitation recovery tau		//0
+		InSyn.d1	=0.1//0.4 //fast depression fraction	//0.35
+		InSyn.tau_D1	=100 //fast depression recovery tau	//153
+		InSyn.d2	=0.1//0.7 //slow depression fraction		//1
+		InSyn.tau_D2	=1000 //slow depression recovery tau	//1000
+		}

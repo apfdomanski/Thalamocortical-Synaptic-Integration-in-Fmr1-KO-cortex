@@ -1,0 +1,377 @@
+// This folder contains simulations supporting results presented in Figs 7-8 in the following paper:
+// Domanski APF, Booker S, Wyllie DJA, Isaac JTR, Kind PC (2018)
+// "Cellular and Synaptic Compensations Limit Circuit Disruption in Fmr1-KO Mouse but Fail to Prevent Deficits in Information Processing"
+// BiorXiv preprint: https://doi.org/10.1101/403725
+// Author: Aleksander PF Domanski 2015-2019 University of Bristol, UK aleks.domanski@bristol.ac.uk
+// Copyright: (C) Aleksander PF Domanski 2019 University of Bristol, UK
+// --------
+// License: GNU General Public License version 2
+// This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+// You should have received a copy of the GNU General Public License along with this program; if not, write to the Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+// http://www.gnu.org/copyleft/gpl.html
+// --------
+// Usage:
+// This simulation investigates the role of the parameter ranges tested in Sim2 and Sim3 on the temporal fidelity and temporal coincidence detection performance of the model system by providing repetitive trials of Poisson-jittered input trains at each modal inter-pulse interval tested. 
+// Supports Fig 7C in the paper.
+
+load_file("nrngui.hoc")
+load_file("cell defs.hoc")
+load_file("channel defs.hoc")
+init_active() 
+
+
+objref maxplotbox, maxplot, vplot
+objref distrw, distrx, distry, distrz, outw, outx, outy, outz //distx,yzz are internal vars that reset each rep, outx,y,z are concatenated for the whole run and are saved to .DAT
+objref tempmatrix, savdata, dataVec // temp placeholder and output matrix identifier
+objref timeVec, dataVec  // vector, file for storing raw data
+objref distrAP //spike time matrix
+
+/////////////////////////
+// Simulation controls //
+/////////////////////////
+
+cvode.active(1) // Multi order variable time step integration method
+cvode.atol(1e-3)
+dt=0.025
+tstop=1000
+v_init=-65
+Vrest = v_init
+
+objref max_dt, max_FFI, res_dt, res_FFI, trial_count,stim_ISIs
+	max_dt = new Vector(1)
+	max_dt.x[0]=201 // maximum ISI (ms) to run up to
+
+	max_FFI = new Vector(1)
+	max_FFI.x[0]=11 // maximum G/A ratio  to run up to
+
+	res_dt = new Vector(1)
+	res_dt.x[0]=5 // iteration increment of ISI
+
+	res_FFI = new Vector(1)
+	res_FFI.x[0]=0.5 // iteration increment of FFI
+
+	trial_count = new Vector(1)
+	trial_count.x[0]=20 // no trials per condition
+
+	stim_ISIs = new Vector(4)
+	stim_ISIs.x[0]=200 
+	stim_ISIs.x[1]=100 
+	stim_ISIs.x[2]=50 
+	stim_ISIs.x[3]=20
+
+///////////
+// Boxes //
+///////////	
+
+// Stimulation control box
+proc StimParamMenu(){
+	xpanel("Simulation controls")
+	xlabel("Looping control - range of FFI to explore")
+	aa=ExCon.weight
+	ab=ExCon_NMDA.weight
+	bb=stimsource.number
+	cc=res_FFI.x[0]
+	dd=max_FFI.x[0]
+	ee=res_dt.x[0]
+	ff=max_dt.x[0]
+	gg=stimsource.noise
+	hg=trial_count.x[0]
+	xvalue("AMPA synapse weight (uS) ",			"aa",1,"ExCon.weight=aa")
+	xvalue("NMDA synapse weight (uS) ",			"ab",1,"ExCon_NMDA.weight=ab")
+	xvalue("No. stimuli ",					"bb",1,"stimsource.number=bb")	
+	xvalue("No. trials ",					"hg",1,"trial_count.x[0]=hg")	
+	xvalue("FFI resolution  ",				"cc",1,"res_FFI.x[0]=cc")
+	xvalue("max FFI  ",					"dd",1,"max_FFI.x[0]=dd")
+	//xvalue("ISI resolution ",				"ee",1,"res_dt.x[0]=ee")
+	//xvalue("Max ISI ",					"ff",1,"max_dt.x[0]=ff")
+	xvalue("Poisson? ",					"gg",1,"stimsource.noise=gg")
+	xpanel(15,554)
+	}
+
+	
+
+
+
+// Summation plot
+maxplotbox = new VBox() 
+maxplotbox.intercept(1)	
+vplot = new Graph()
+vplot.size(0,tstop,-75,55)
+vplot.xaxis(1)
+vplot.label(0.4, 0.1,"Time (ms)")
+//vplot.exec_menu("10% Zoom out")
+vplot.brush(1)
+vplot.exec_menu("Keep Lines")
+
+maxplot = new Graph()
+maxplot.size(0,max_dt.x[0],0,100)
+maxplot.xaxis(1)
+maxplot.label(0.4,0.1,"Inter-stimulus interval (ms)")
+maxplot.label(0.4, 0.9,"Peak depolarization (mV)")
+//g.label(0.35,0.22,"S1")
+maxplot.mark(60,-66,"O",6,1,1)
+maxplot.exec_menu("10% Zoom out")
+maxplot.brush(0)
+
+xpanel("",1)
+xbutton("WT all (blue)", "run_WT_all()")
+xbutton("KO all (red)", "run_KO_all()")
+xbutton("KO passive (green)", "run_KO_passive()")
+xbutton("KO kinetics (orange)", "run_KO_kinetics()")
+xbutton("KO delay (brown)", "run_KO_delay()")
+xbutton("KO STP (pink)", "run_KO_STP()")
+
+xpanel()
+maxplotbox.intercept(0)
+maxplotbox.map()
+
+
+
+	
+	
+
+
+
+
+
+////////////////
+// Initialise //
+////////////////
+StimParamMenu()
+//init_WT_all() 
+
+///////////////////
+// Runtime loops //
+///////////////////
+
+proc init(){
+	t=0
+        forall {v=Vrest e_pas =Vrest}
+	finitialize(v)
+        fcurrent()        
+        prepareRun()
+        cvode.re_init()
+	vplot.begin()
+	vplot.plot(t)
+	}
+
+
+proc prepareRun(){
+   	// Prepare data structures
+   	dataVec=new Vector()
+   	timeVec=new Vector()
+   	// Start recording
+ 	dataVec.record(&soma.v(0.5))
+ 	timeVec.record(&t)
+ 	}	
+
+
+
+proc logRun() { local i  localobj tfil
+	// $o1, $o2 Vectors of x & y values, respectively
+	// $s3 file name string
+  	print "writing to ", $s3
+  	tfil = new File()
+  	tfil.wopen($s3)
+  	tfil.printf("%d\n",$o1.size())
+  	for i=0,$o1.size()-1 tfil.printf("%g\t%g\n", $o1.x[i], $o2.x[i])
+  	tfil.close()
+  	}
+
+
+
+proc step(){
+	fadvance()
+	vplot.plot(t)
+	vplot.flush()
+	
+
+	}
+
+
+
+proc run(){
+	init()
+	while(t<tstop) { step()}
+		doNotify()
+	}
+
+
+proc loop() {
+	maxplot.color(color)
+	vplot.addvar("soma.v(0.5)",color,1, tstop,0,2)
+	//initial parameters
+	//stimsource.start()=10
+	InCon.weight=0.00000 
+
+	////// LOOP 1: In/Ex ratio
+	while (InCon.weight/ExCon.weight<max_FFI.x[0]){		
+		stimsource.interval()=1
+		distrw=new Vector()//trial
+		distrx=new Vector()//ISI
+		distry=new Vector()//Vmax
+		distrz=new Vector()//In
+		//distrAP =new APCount(x)
+		//distrAP.thresh = 0 // cross 0mV to log AP
+		
+		////// LOOP 2: ISI
+		
+		//stimsource.interval()=5
+		//for(ISI_id=stimsource.interval(); ISI_id<=max_dt.x[0];ISI_id=ISI_id+res_dt.x[0]){ 
+		//stimsource.interval()=ISI_id
+		for(ISI_id=1; ISI_id<=stim_ISIs.size();ISI_id=ISI_id+1){
+		stimsource.interval()= stim_ISIs.x[ISI_id-1]
+		vplot.exec_menu("Erase")
+		//while (stimsource.interval<max_dt.x[0]) {
+			////// LOOP 3: trials
+			for(trial_id=1; trial_id<=trial_count.x[0]; trial_id=trial_id+1){ //trial_id<=trials.x[0]
+				
+				run()
+				// (1) Export result to file
+				strdef filename, ISI, InEx, trial // filenames and component strings
+				sprint(trial,"%d",trial_id)
+				sprint(ISI,  "%d",stimsource.interval)
+				sprint(InEx, "%d",InCon.weight/ExCon.weight)
+				sprint(filename,"%s%s%s%s%s%s%s","RAW_",trial,"_trial_",ISI,"_ISI_",InEx,"_InEx.dat")
+				logRun(timeVec, dataVec, filename)
+				// (2) Export analysed variables
+				distrw.append(trial_id)
+				distrx.append(stimsource.interval())
+				distry.append(InCon.weight()/ExCon.weight())
+				distrz.append(soma.vmax_ds(0.5)-Vrest)
+				}  // ... Increment trial_id
+				
+						
+					
+			//stimsource.interval()=stimsource.interval()+res_dt.x[0] 
+			} //...increment ISI
+		
+		// update the graphics
+		maxplot.beginline()
+		for index=0, distrx.size()-1 {maxplot.line(distrx.x[index],distrz.x[index])} //plot coords of max summation in distx, disty		
+		maxplot.flush()
+		doNotify()
+		
+		InCon.weight()=InCon.weight()+ExCon.weight()*res_FFI.x[0] 
+		} //...increment FFI
+	savdata = new File()
+	savdata.wopen("analysed_data.dat")
+	savdata.printf("ISI (ms) | In/Ex ratio | Peak Depolarisation (mV) | Trial no.\n")
+	tempmatrix = new Matrix()
+	tempmatrix.resize(distrx.size(),4)
+	tempmatrix.setcol(0, distrx)
+	tempmatrix.setcol(1, distry)
+	tempmatrix.setcol(2, distrz)
+	tempmatrix.setcol(3, distrw)
+	tempmatrix.fprint(savdata, " %g")
+	savdata.close()
+	}
+
+		
+
+///////////////////////
+//  Genotype control //
+///////////////////////
+
+proc run_WT_all(){
+	maxplot.begin()
+	maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+
+	init_WT_all()
+	//InCon.weight	=0.00
+	color=3 // blue
+	loop()
+	}
+proc run_KO_all(){
+	maxplot.begin()
+	maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+	init_KO_all()
+	//InCon.weight	=0.00	
+	color=2 // red
+	loop()
+	}
+	
+proc run_KO_passive(){
+	maxplot.begin()
+	maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+	init_WT_all()
+	init_KO_passive()
+	color=4 // green
+	loop()
+	}	
+proc run_KO_kinetics(){
+	maxplot.begin()
+	maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+	init_WT_all()
+	init_KO_kinetics()
+	color=5 // orange
+	loop()
+	}	
+proc run_KO_delay(){
+	maxplot.begin()
+	maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+	init_WT_all()
+	init_KO_delay()
+	color=6 // brown
+	loop()
+	}	
+proc run_KO_STP(){
+	maxplot.begin()
+	maxplot.exec_menu("Keep Lines")
+	//vplot.exec_menu("Keep Lines")
+
+	distrx=new Vector()
+	distry=new Vector()
+	outx=new Vector()
+	outy=new Vector()
+	outz=new Vector()
+	init_WT_all()
+	init_KO_STP()
+	color=6 // pink
+	loop()
+	}	
+	
+	
+	
+
+
+
+	
+
+
