@@ -58,20 +58,37 @@ This file sets the properties of the voltage-gated conductances required to make
  
 ### `Sim0_Intrinsic properties_demo.hoc`
 This simulates the somatic membrane potential deflection in response to an injected current pulse. 
+
+![Sim0_controls1](Screenshots/Sim0/Sim0_2.png) ![Sim0_controls2](Screenshots/Sim0/Sim0_1.png) 
+![Sim0_results](Screenshots/Sim0/Sim0_3.png)
+
 - Press ‘init & Run’ to simulate.
 - Try changing the injected current magnitude to control the number of spikes.
 - In the console, try typing `init_WT_passive()` or `init_KO_passive()` to switch between the cell intrinsic properties of the WT and _Fmr1-KO_ simulation , respectively. 
 - To compare the voltage responses, keep the previous lines on the graph window screen by right-clicking>keep lines.
 
+---
+
+
 ### `Sim1_Single_stim_subthreshold_FFI_response.hoc`
 This simulates the effect of FFI on the postsynaptic currents (Blue: EPSC, Red: IPSC) and membrane potential (black) of the model layer IV stellate cell in response to a single model thalamic input. 
+
+![Sim1_controls](Screenshots/Sim1/Sim1_1.png) 
+![Sim0_results2](Screenshots/Sim1/Sim1_2.png) 
+![Sim1_results2](Screenshots/Sim1/Sim1_3.png)
+
 - Press ‘init & Run’ to simulate.
 - Examine the Vm effect of varying the strength of the Ex and In synaptic weights, and the synaptic delays between the two input currents. 
 - In the console, try typing `init_WT_passive()` or `init_KO_passive()` to switch between the cell intrinsic properties of the WT and _Fmr1-KO_ simulation, respectively. 
 - To compare the voltage responses, keep the previous lines on the graph window screen by right-clicking>keep lines.
 
+---
+
 ### `Sim2_Effect_of_FFI_on_subthreshold_summation.hoc`
 This simulation explores the role of different pathophysiological parameter groups on thalamocortical integration. 
+
+![Sim2_controls](Screenshots/Sim2/Sim2_1.png) 
+![Sim2_results](Screenshots/Sim2/Sim2_2.png) 
 
 Each of the lower buttons in the simulation graph window takes a different group of parameter and changes that subset of parameters in the WT simulation case. 
 
@@ -83,19 +100,41 @@ Supports Figure 7A in the paper.
 - Try changing the number of stimuli
 - Observe the effect of varying the relative contributions of AMPA and NMDA conductances.
 
+--- 
+
+
 ### `Sim3_Effect_of_FFI_on_spike_output.hoc`
 This simulation repeats the loop of `Sim2` additionally including model voltage-gated conductances supporting spike generation. 
+
+![Sim3_controls](Screenshots/Sim3/Sim3_1.png) 
+![Sim3_results](Screenshots/Sim3/Sim3_2.png) 
 
 The peak depolarization plot now captures which conditions of {pathophysiological effect, FFI strength, Inter-stimulus interval, number of inputs} provide sufficient depolarisation to make the cell fire.
 
 Supports Figure 7B-C in the paper.
 
+---
+
+
 ### `Sim4_Effect_of_FFI_on_spike_timing.hoc`
 This simulation investigates the role of the parameter ranges tested in `Sim2` and `Sim3` on the temporal fidelity and temporal coincidence detection performance of the model system by providing repetitive trials of Poisson-jittered input trains at each modal inter-pulse interval tested. 
 
+![Sim4 controls](Screenshots/Sim4/Sim4_1.png) 
+![Sim4_results](Screenshots/Sim4/Sim4_2.png) 
+
 Supports Fig 7C in the paper.
 
+---
+
+
 ### `Sim5_Simulated_rescue_scenarios.hoc`
+Evaluating simulated rescue scenarios based on parameter groupings.
+
+Supports Fig 8 in the paper.
+
+![Sim5 controls](Screenshots/Sim5/Sim5_1.png) 
+![Sim5_results](Screenshots/Sim5/Sim5_2.png) 
+
 This simulation takes the four thalamocortical pathophysiology parameter groups studied in the simulations above:
 1.	Intrinsic cell excitability
 2.	Synaptic kinetics
@@ -107,7 +146,6 @@ Under this nomenclature, condition code ‘1010’ represents WT values for Intr
 
 The response profiles for each parameter rescue condition across the space of FFI strength (Ex/In balance) and thalamocortical input rate are calculated: i.e. did the model neuron fire fewer or greater numbers of spikes under identical stimulation conditions.
 
-Supports Fig 8 in the paper.
 
 
 
