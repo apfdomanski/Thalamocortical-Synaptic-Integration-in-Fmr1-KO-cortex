@@ -1,13 +1,15 @@
  ### Distorted Frequency Filtering and Synaptic Integration at the _Fmr1-KO_ Thalamocortical Synapse
  ![Banner_cartoon](Screenshots/repository-banner.png) 
-A suite of NEURON simulations to dissect the roles of distributed circuit pathophysiology in the young _Fmr1-KO_ mouse thalamocortical system
+A suite of NEURON simulations to dissect the roles of distributed circuit pathophysiology in the young _Fmr1-KO_ mouse thalamocortical system.
 
 This folder contains simulations supporting results presented in Figs 8-9 in the following paper:
 
-Domanski APF, Booker S, Wyllie DJA, Isaac JTR, Kind PC (2018)
+Domanski APF, Booker S, Wyllie DJA, Isaac JTR, Kind PC (2019)
 "_Cellular and Synaptic Compensations Limit Circuit Disruption in Fmr1-KO Mouse but Fail to Prevent Deficits in Information Processing_"
 
-BiorXiv preprint: https://doi.org/10.1101/403725
+Nature Communications 2019 Oct 23;10(1):4814. 
+
+DOI: 10.1038/s41467-019-12736-y
 
 Author: Aleksander PF Domanski 2015-2019 University of Bristol, UK aleks.domanski@bristol.ac.uk
 
